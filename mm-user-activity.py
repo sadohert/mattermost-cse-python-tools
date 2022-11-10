@@ -5,6 +5,9 @@ from mattermostdriver import Driver
 import json
 from pathlib import Path
 
+CSV_COLUMNS = ['id', 'create_at', 'update_at', 'delete_at', 'username', 'email',
+               'nickname', 'first_name', 'last_name', 'position', 'last_activity_at']
+
 
 def is_valid_file(parser, arg):
     if not os.path.exists(arg):
@@ -13,10 +16,26 @@ def is_valid_file(parser, arg):
         return open(arg, 'r')  # return an open file handle
 
 
+def is_new_file(parser, arg):
+    if os.path.exists(arg):
+        parser.error(
+            "The file {} already exists.  Choose a new filename".format(arg))
+    else:
+        return open(arg, 'w')  # return an open file handle
+
+
+def flattenuserjson(u, delim=', '):
+    val = []
+    val = [u.get(c) for c in CSV_COLUMNS]
+    return delim.join(str(c) for c in val)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--siteurl", help="The site URL of the target Mattermost server")
+    parser.add_argument(
+        "--outfile", help="The name of a file to output results to", required=True, type=lambda x: is_new_file(parser, x))
     parser.add_argument(
         "--tokenfile", help="A txt file containing a valid Mattermost Personal Access token from an account with System Admin access.", type=lambda x: is_valid_file(parser, x))
     parser.add_argument(
@@ -24,7 +43,9 @@ def main():
     parser.add_argument(
         "--pagesize", help="The page size when querying for users", type=int, default=100)
     parser.add_argument(
-        "--num_users", help="The total number of available users to retrieve", type=int, default=100)
+        "--num_users", help="The total number of available users to retrieve", type=int)
+    parser.add_argument(
+        "--sort", help="The field used to sort return results.  Valid values are [last_activity_at, create_at]", default='last_activity_at', choices=['create_at', 'last_activity_at'])
 
     args = parser.parse_args()
 
@@ -41,19 +62,34 @@ def main():
     team_id = mm.teams.get_team_by_name(name=args.team)['id']
 
     # Page through users
-    num_mm_users = mm.users.get_stats()['total_users_count']
-    page_size = args.pagesize if num_mm_users > args.pagesize else num_mm_users
-    page_count = (num_mm_users % page_size) + 1
-    page_current_idx = 0
-    print("Extracting information for {} users using - pagesize:{}, page_count:{}".format(
-        num_mm_users, page_size, page_count))
-    users_by_lastactivity = []
-    while page_current_idx < page_count:
-        users_by_lastactivity.extend(mm.users.get_users(
-            params={'in_team': team_id, 'page': page_current_idx, 'per_page': page_size, 'sort': 'last_activity_at'}))
-        page_current_idx += 1
+    mm_total_users = mm.users.get_stats()['total_users_count']
+    num_users_requested = mm_total_users if args.num_users is None else args.num_users
 
-    print([(t['username'], t['email']) for t in users_by_lastactivity])
+    page_size = args.pagesize if mm_total_users > args.pagesize else mm_total_users
+    page_count = round(mm_total_users / page_size) + 1
+    page_current_idx = 0
+    num_users_retrieved = 0
+    num_remaining_users = num_users_requested
+
+    print("Extracting information for {} users using - pagesize:{}, page_count:{}".format(
+        mm_total_users, page_size, page_count))
+    users_json_array = []
+    while num_users_retrieved < num_users_requested:
+        users_json_array.extend(mm.users.get_users(
+            params={'in_team': team_id, 'page': page_current_idx, 'per_page': page_size, 'sort': args.sort}))
+        print("Page: {}/{}".format(page_current_idx, page_count))
+        num_users_retrieved += page_size
+        page_current_idx += 1
+        num_remaining_users -= page_size
+        if num_remaining_users < page_size and num_remaining_users > 0:
+            page_size = num_remaining_users
+
+    # Save the file
+    args.outfile.write("{}\n".format(", ".join(CSV_COLUMNS)))
+    for u in users_json_array:
+        args.outfile.write("{}\n".format(flattenuserjson(u)))
+
+    # print([(t['username'], t['email']) for t in users_json_array])
     pass
 
 

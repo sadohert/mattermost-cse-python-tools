@@ -10,12 +10,16 @@
             "request": "launch",
             "program": "${file}",
             "args": [
+                "--outfile",
+                "stu_test.csv",
                 "--siteurl",
                 "mm-stu-local.ngrok.io",
                 "--tokenfile",
                 "./mm-stu-local-token.txt",
                 "--team",
-                "ad-1"
+                "reiciendis-0",
+                "--sort",
+                "create_at"
             ],
             "console": "integratedTerminal",
             "justMyCode": true
