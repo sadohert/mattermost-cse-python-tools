@@ -1,12 +1,15 @@
 #!/usr/bin/python
 import os
 import argparse
+import datetime
 from mattermostdriver import Driver
 import json
 from pathlib import Path
 
 CSV_COLUMNS = ['id', 'create_at', 'update_at', 'delete_at', 'username', 'email',
                'nickname', 'first_name', 'last_name', 'position', 'last_activity_at']
+
+DATE_COLUMNS = ['create_at', 'update_at', 'delete_at', 'last_activity_at']
 
 
 def is_valid_file(parser, arg):
@@ -24,10 +27,11 @@ def is_new_file(parser, arg):
         return open(arg, 'w')  # return an open file handle
 
 
-def flattenuserjson(u, delim=', '):
+def formatuserjson(u, delim=', '):
     val = []
-    val = [u.get(c) for c in CSV_COLUMNS]
-    return delim.join(str(c) for c in val)
+    val = [datetime.datetime.fromtimestamp(
+        int(u.get(c))/1000) if c in DATE_COLUMNS and u.get(c) is not None else u.get(c) for c in CSV_COLUMNS]
+    return delim.join(str(c).replace(",", " ") for c in val)
 
 
 def main():
@@ -37,9 +41,9 @@ def main():
     parser.add_argument(
         "--outfile", help="The name of a file to output results to", required=True, type=lambda x: is_new_file(parser, x))
     parser.add_argument(
-        "--tokenfile", help="A txt file containing a valid Mattermost Personal Access token from an account with System Admin access.", type=lambda x: is_valid_file(parser, x))
+        "--tokenfile", help="A txt file containing a valid Mattermost Personal Access token from an account with System Admin access.", required=True, type=lambda x: is_valid_file(parser, x))
     parser.add_argument(
-        "--team", help="The name of the team to query.  Use the url-friendly version, not the Team Display Name")
+        "--team", help="The name of the team to query.  Use the url-friendly version, not the Team Display Name", required=True)
     parser.add_argument(
         "--pagesize", help="The page size when querying for users", type=int, default=100)
     parser.add_argument(
@@ -55,7 +59,7 @@ def main():
                 'port': 443,
                  'token': args.tokenfile.readline().strip(),
                  'scheme': 'https',
-                 'debug': True,
+                 'debug': False,
                  })
 
     mm.login()
@@ -87,7 +91,7 @@ def main():
     # Save the file
     args.outfile.write("{}\n".format(", ".join(CSV_COLUMNS)))
     for u in users_json_array:
-        args.outfile.write("{}\n".format(flattenuserjson(u)))
+        args.outfile.write("{}\n".format(formatuserjson(u)))
 
     # print([(t['username'], t['email']) for t in users_json_array])
     pass
