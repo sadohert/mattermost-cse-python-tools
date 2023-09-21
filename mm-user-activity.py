@@ -7,9 +7,12 @@ import json
 from pathlib import Path
 
 CSV_COLUMNS = ['id', 'create_at', 'update_at', 'delete_at', 'username', 'email',
-               'nickname', 'first_name', 'last_name', 'position', 'last_activity_at']
+               'nickname', 'auth_service', 'first_name', 'last_name', 'position', 'last_activity_at']
 
 DATE_COLUMNS = ['create_at', 'update_at', 'delete_at', 'last_activity_at']
+
+DEFAULT_PORT = 443
+DEFAULT_SCHEME = 'https'
 
 
 def is_valid_file(parser, arg):
@@ -39,26 +42,52 @@ def main():
     parser.add_argument(
         "--siteurl", help="The site URL of the target Mattermost server")
     parser.add_argument(
-        "--outfile", help="The name of a file to output results to", required=True, type=lambda x: is_new_file(parser, x))
+        "--port",
+        default=DEFAULT_PORT,
+        help="The port on which the Mattermost server is listening [Default: {0}]".format(DEFAULT_PORT)
+    )
     parser.add_argument(
-        "--tokenfile", help="A txt file containing a valid Mattermost Personal Access token from an account with System Admin access.", required=True, type=lambda x: is_valid_file(parser, x))
+        "--scheme",
+        default=DEFAULT_SCHEME,
+        help="The HTTP scheme to be used. [Default: {0}]".format(DEFAULT_SCHEME),
+        choices=['http', 'https']
+    )
     parser.add_argument(
-        "--team", help="The name of the team to query.  Use the url-friendly version, not the Team Display Name", required=True)
+        "--outfile",
+        help="The name of a file to output results to",
+        required=True,
+        type=lambda x: is_new_file(parser, x)
+    )
+    parser.add_argument(
+        "--tokenfile",
+        help="A txt file containing a valid Mattermost Personal Access token from an account with System Admin access.",
+        required=True,
+        type=lambda x: is_valid_file(parser, x)
+    )
+    parser.add_argument(
+        "--team",
+        help="The name of the team to query.  Use the url-friendly version, not the Team Display Name",
+        required=True
+    )
     parser.add_argument(
         "--pagesize", help="The page size when querying for users", type=int, default=100)
     parser.add_argument(
         "--num_users", help="The total number of available users to retrieve", type=int)
     parser.add_argument(
-        "--sort", help="The field used to sort return results.  Valid values are [last_activity_at, create_at]", default='last_activity_at', choices=['create_at', 'last_activity_at'])
+        "--sort",
+        help="The field used to sort return results.  Valid values are [last_activity_at, create_at]",
+        default='last_activity_at',
+        choices=['create_at', 'last_activity_at']
+    )
 
     args = parser.parse_args()
 
     print("Site: {}, Token File: {}".format(args.siteurl, args.tokenfile))
 
     mm = Driver({'url': args.siteurl,
-                'port': 443,
+                'port': 8065,
                  'token': args.tokenfile.readline().strip(),
-                 'scheme': 'https',
+                 'scheme': 'http',
                  'debug': False,
                  })
 
