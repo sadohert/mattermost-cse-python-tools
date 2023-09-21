@@ -90,9 +90,9 @@ If omitted, defaults to all users."""
     print("Site: {}, Token File: {}".format(args.siteurl, args.tokenfile))
 
     mm = Driver({'url': args.siteurl,
-                'port': 8065,
+                'port': args.port,
                  'token': args.tokenfile.readline().strip(),
-                 'scheme': 'http',
+                 'scheme': args.scheme,
                  'debug': False,
                  })
 
