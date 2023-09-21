@@ -6,7 +6,7 @@ from mattermostdriver import Driver
 import json
 from pathlib import Path
 
-CSV_COLUMNS = ['id', 'create_at', 'update_at', 'delete_at', 'username', 'email',
+CSV_COLUMNS = ['id', 'create_at', 'update_at', 'delete_at', 'username', 'email', 'roles',
                'nickname', 'auth_service', 'first_name', 'last_name', 'position', 'last_activity_at']
 
 DATE_COLUMNS = ['create_at', 'update_at', 'delete_at', 'last_activity_at']
@@ -66,8 +66,8 @@ def main():
     )
     parser.add_argument(
         "--team",
-        help="The name of the team to query.  Use the url-friendly version, not the Team Display Name",
-        required=True
+        help="""The name of the team to query.  Use the url-friendly version, not the Team Display Name.  
+If omitted, defaults to all users."""
     )
     parser.add_argument(
         "--pagesize", help="The page size when querying for users", type=int, default=100)
@@ -75,7 +75,9 @@ def main():
         "--num_users", help="The total number of available users to retrieve", type=int)
     parser.add_argument(
         "--sort",
-        help="The field used to sort return results.  Valid values are [last_activity_at, create_at]",
+        help="""The field used to sort return results.  Valid values are [last_activity_at, create_at].
+(Only used in conjunction with Team parameter, otherwise ignored.)
+        """,
         default='last_activity_at',
         choices=['create_at', 'last_activity_at']
     )
@@ -92,7 +94,8 @@ def main():
                  })
 
     mm.login()
-    team_id = mm.teams.get_team_by_name(name=args.team)['id']
+    if args.team:
+        team_id = mm.teams.get_team_by_name(name=args.team)['id']
 
     # Page through users
     mm_total_users = mm.users.get_stats()['total_users_count']
@@ -108,8 +111,12 @@ def main():
         mm_total_users, page_size, page_count))
     users_json_array = []
     while num_users_retrieved < num_users_requested:
+        req_params = {'page': page_current_idx, 'per_page': page_size}
+        if args.team:
+            req_params['in_team'] = team_id
+            req_params['sort'] = args.sort
         users_json_array.extend(mm.users.get_users(
-            params={'in_team': team_id, 'page': page_current_idx, 'per_page': page_size, 'sort': args.sort}))
+            params=req_params))
         print("Page: {}/{}".format(page_current_idx, page_count))
         num_users_retrieved += page_size
         page_current_idx += 1
