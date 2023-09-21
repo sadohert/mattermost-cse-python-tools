@@ -40,7 +40,10 @@ def formatuserjson(u, delim=', '):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--siteurl", help="The site URL of the target Mattermost server")
+        "--siteurl", 
+        help="The site URL of the target Mattermost server",
+        required=True
+    )
     parser.add_argument(
         "--port",
         default=DEFAULT_PORT,
