@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 import os
 import argparse
 import datetime
@@ -13,6 +13,8 @@ DATE_COLUMNS = ['create_at', 'update_at', 'delete_at', 'last_activity_at']
 
 DEFAULT_PORT = 443
 DEFAULT_SCHEME = 'https'
+
+DEBUG = False
 
 
 def is_valid_file(parser, arg):
@@ -87,13 +89,15 @@ If omitted, defaults to all users."""
 
     args = parser.parse_args()
 
-    print("Site: {}, Token File: {}".format(args.siteurl, args.tokenfile))
+    userToken = args.tokenfile.readline().strip()
+
+    print("Site: {}, Port: {}, Scheme: {}, Token: {}".format(args.siteurl, args.port, args.scheme, userToken))
 
     mm = Driver({'url': args.siteurl,
-                'port': args.port,
-                 'token': args.tokenfile.readline().strip(),
+                'port': int(args.port),
+                 'token': userToken,
                  'scheme': args.scheme,
-                 'debug': False,
+                 'debug': DEBUG,
                  })
 
     mm.login()

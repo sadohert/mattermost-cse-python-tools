@@ -130,3 +130,8 @@ dmypy.json
 
 .python-version
 export
+token.local
+sademo.token
+*.csv
+
+.idea
