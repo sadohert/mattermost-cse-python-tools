@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 import os
 import argparse
 import datetime
@@ -6,10 +6,15 @@ from mattermostdriver import Driver
 import json
 from pathlib import Path
 
-CSV_COLUMNS = ['id', 'create_at', 'update_at', 'delete_at', 'username', 'email',
-               'nickname', 'first_name', 'last_name', 'position', 'last_activity_at']
+CSV_COLUMNS = ['id', 'create_at', 'update_at', 'delete_at', 'username', 'email', 'roles',
+               'nickname', 'auth_service', 'first_name', 'last_name', 'position', 'last_activity_at']
 
 DATE_COLUMNS = ['create_at', 'update_at', 'delete_at', 'last_activity_at']
+
+DEFAULT_PORT = 443
+DEFAULT_SCHEME = 'https'
+
+DEBUG = False
 
 
 def is_valid_file(parser, arg):
@@ -37,33 +42,67 @@ def formatuserjson(u, delim=', '):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--siteurl", help="The site URL of the target Mattermost server")
+        "--siteurl", 
+        help="The site URL of the target Mattermost server",
+        required=True
+    )
     parser.add_argument(
-        "--outfile", help="The name of a file to output results to", required=True, type=lambda x: is_new_file(parser, x))
+        "--port",
+        default=DEFAULT_PORT,
+        help="The port on which the Mattermost server is listening [Default: {0}]".format(DEFAULT_PORT)
+    )
     parser.add_argument(
-        "--tokenfile", help="A txt file containing a valid Mattermost Personal Access token from an account with System Admin access.", required=True, type=lambda x: is_valid_file(parser, x))
+        "--scheme",
+        default=DEFAULT_SCHEME,
+        help="The HTTP scheme to be used. [Default: {0}]".format(DEFAULT_SCHEME),
+        choices=['http', 'https']
+    )
     parser.add_argument(
-        "--team", help="The name of the team to query.  Use the url-friendly version, not the Team Display Name", required=True)
+        "--outfile",
+        help="The name of a file to output results to",
+        required=True,
+        type=lambda x: is_new_file(parser, x)
+    )
+    parser.add_argument(
+        "--tokenfile",
+        help="A txt file containing a valid Mattermost Personal Access token from an account with System Admin access.",
+        required=True,
+        type=lambda x: is_valid_file(parser, x)
+    )
+    parser.add_argument(
+        "--team",
+        help="""The name of the team to query.  Use the url-friendly version, not the Team Display Name.  
+If omitted, defaults to all users."""
+    )
     parser.add_argument(
         "--pagesize", help="The page size when querying for users", type=int, default=100)
     parser.add_argument(
         "--num_users", help="The total number of available users to retrieve", type=int)
     parser.add_argument(
-        "--sort", help="The field used to sort return results.  Valid values are [last_activity_at, create_at]", default='last_activity_at', choices=['create_at', 'last_activity_at'])
+        "--sort",
+        help="""The field used to sort return results.  Valid values are [last_activity_at, create_at].
+(Only used in conjunction with Team parameter, otherwise ignored.)
+        """,
+        default='last_activity_at',
+        choices=['create_at', 'last_activity_at']
+    )
 
     args = parser.parse_args()
 
-    print("Site: {}, Token File: {}".format(args.siteurl, args.tokenfile))
+    userToken = args.tokenfile.readline().strip()
+
+    print("Site: {}, Port: {}, Scheme: {}, Token: {}".format(args.siteurl, args.port, args.scheme, userToken))
 
     mm = Driver({'url': args.siteurl,
-                'port': 443,
-                 'token': args.tokenfile.readline().strip(),
-                 'scheme': 'https',
-                 'debug': False,
+                'port': int(args.port),
+                 'token': userToken,
+                 'scheme': args.scheme,
+                 'debug': DEBUG,
                  })
 
     mm.login()
-    team_id = mm.teams.get_team_by_name(name=args.team)['id']
+    if args.team:
+        team_id = mm.teams.get_team_by_name(name=args.team)['id']
 
     # Page through users
     mm_total_users = mm.users.get_stats()['total_users_count']
@@ -79,8 +118,12 @@ def main():
         mm_total_users, page_size, page_count))
     users_json_array = []
     while num_users_retrieved < num_users_requested:
+        req_params = {'page': page_current_idx, 'per_page': page_size}
+        if args.team:
+            req_params['in_team'] = team_id
+            req_params['sort'] = args.sort
         users_json_array.extend(mm.users.get_users(
-            params={'in_team': team_id, 'page': page_current_idx, 'per_page': page_size, 'sort': args.sort}))
+            params=req_params))
         print("Page: {}/{}".format(page_current_idx, page_count))
         num_users_retrieved += page_size
         page_current_idx += 1
